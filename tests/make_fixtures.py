@@ -30,13 +30,14 @@ TECH = [
     ("8.4 e", "应"), ("8.4 f", "宜"), ("8.4 g", "宜"), ("8.4 h", "宜"),
 ]
 
-# 管理 19 项。条款号按 9.x 编排，级别统一写"应"。
-# 注意：这部分是 fixture 的占位结构，等 DSH 给出管理 19 项的真实条款号与级别后要同步修正。
+# 管理 19 项：GB/T 39786-2021 第三级原文的 8.5 ~ 8.8。
+# 注意编号是 8.5~8.8，不是第 9 章的 9.1~9.8（9.x 是第四级的要求）。
+# 这 19 条全部是「应」——标准原文如此，管理要求不留选择余地。
 MGMT = (
-    [("9.1 %s" % c, "应") for c in "abcdefg"] +   # 7
-    [("9.2 %s" % c, "应") for c in "abcde"] +     # 5
-    [("9.3 %s" % c, "应") for c in "abcd"] +      # 4
-    [("9.4 %s" % c, "应") for c in "abc"]         # 3
+    [("8.5 %s" % c, "应") for c in "abcdef"] +    # 6  管理制度
+    [("8.6 %s" % c, "应") for c in "abcde"] +     # 5  人员管理
+    [("8.7 %s" % c, "应") for c in "abcde"] +     # 5  建设运行
+    [("8.8 %s" % c, "应") for c in "abc"]         # 3  应急处置
 )  # 合计 19
 
 SELF_ASSESS = "设计满足"
@@ -50,7 +51,8 @@ def _p(doc, text):
     doc.add_paragraph(text)
 
 
-def build(path, drop_ch5=False, wrong_level=False, add_compliant=False):
+def build(path, drop_ch5=False, wrong_level=False, add_compliant=False,
+          drop_mgmt=False, wrong_mgmt_level=False):
     doc = Document()
 
     # ---- 1 背景 ----
@@ -118,6 +120,12 @@ def build(path, drop_ch5=False, wrong_level=False, add_compliant=False):
     rows = TECH + MGMT
     if wrong_level:
         rows = [("8.2 b", "应") if c == "8.2 b" else (c, l) for c, l in rows]
+    if drop_mgmt:
+        # 删掉 8.8 三条，模拟「管理部分没写完」
+        rows = [(c, l) for c, l in rows if not c.startswith("8.8 ")]
+    if wrong_mgmt_level:
+        # 8.5 d 写成「宜」，模拟「管理要求被降级」
+        rows = [("8.5 d", "宜") if c == "8.5 d" else (c, l) for c, l in rows]
 
     table = doc.add_table(rows=len(rows) + 1, cols=3)
     table.style = "Table Grid"
@@ -162,6 +170,8 @@ def main():
         ("missing-ch5.docx", {"drop_ch5": True}),
         ("wrong-level.docx", {"wrong_level": True}),
         ("wording.docx", {"add_compliant": True}),
+        ("missing-mgmt.docx", {"drop_mgmt": True}),
+        ("wrong-mgmt-level.docx", {"wrong_mgmt_level": True}),
     ]
     for name, kw in jobs:
         path = os.path.join(OUT, name)

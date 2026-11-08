@@ -84,7 +84,7 @@ Chapter titles are matched by "chapter number + fixed name", so
 `一、背景`, `1. 项目背景` and `第一章 背景` all work. Body text that merely
 mentions 背景 does not count as a chapter.
 
-### Indicator coverage (C-01 – C-05)
+### Indicator coverage (C-01 – C-06)
 
 Looks for the indicator table (technical 22 rows + management 19 rows = 41 rows)
 and checks:
@@ -92,11 +92,16 @@ and checks:
 - does the table exist at all (reports critical if not — it does not guess)
 - row count
 - whether each of the 22 technical clauses is present
+- whether each of the 19 management clauses is present
 - whether the level column matches 应 / 宜 / 可 from the standard
 
-**Management indicators (19 rows) are currently only counted, not verified
-clause-by-clause.** The clause list for that section is not yet in the spec,
-and guessing standard clause numbers would be worse than leaving it out.
+The 19 management rows are checked clause-by-clause against **8.5 – 8.8** of
+the third-level requirements, and **all 19 are 应 (mandatory)**. Writing 宜 for
+one of them gets reported.
+
+> Easy mistake: third-level management requirements are **8.5–8.8**, not
+> 9.1–9.8. Section 9 is the fourth level; a table copied from a level-4
+> template goes wrong starting right there.
 
 ### Wording (W-01 – W-02)
 

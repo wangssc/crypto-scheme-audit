@@ -7,3 +7,5 @@ tests/fixtures/*.docx
 build/
 dist/
 out/
+# 探针与临时输出
+_probe/

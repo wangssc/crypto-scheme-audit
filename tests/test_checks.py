@@ -197,6 +197,38 @@ def test_coverage_level_mismatch_reported():
     assert c4 and "8.2 b" in c4[0]["detail"]
 
 
+def test_coverage_mgmt_missing_reported():
+    """管理 19 项少一条就要报——这部分以前是空白，现在有真数据了。"""
+    rows = [(c, l) for c, l in coverage.TECH_INDICATORS + coverage.MGMT_INDICATORS
+            if c != "8.8 c"]
+    got = coverage.run(_doc(["x"], tables=_make_table(rows)))
+    c5 = [f for f in got if f["id"] == "C-05"]
+    assert c5 and "8.8 c" in c5[0]["detail"]
+
+
+def test_coverage_mgmt_level_mismatch_reported():
+    """管理 19 项全部是「应」，写「宜」就是与原文不符。"""
+    base = coverage.TECH_INDICATORS + coverage.MGMT_INDICATORS
+    rows = [("8.5 d", "宜") if c == "8.5 d" else (c, l) for c, l in base]
+    got = coverage.run(_doc(["x"], tables=_make_table(rows)))
+    c6 = [f for f in got if f["id"] == "C-06"]
+    assert c6 and "8.5 d" in c6[0]["detail"]
+
+
+def test_mgmt_indicator_count_is_19():
+    """22 + 19 = 41，这个数是整张表的骨架，写错了下面全错。"""
+    assert len(coverage.TECH_INDICATORS) == 22
+    assert len(coverage.MGMT_INDICATORS) == 19
+    assert len(coverage.TECH_INDICATORS) + len(coverage.MGMT_INDICATORS) == coverage.TOTAL_ROWS
+
+
+def test_mgmt_indicators_all_required():
+    """第三级的管理要求没有「宜」也没有「可」，18 条以上写错就说明抄错了章。"""
+    assert all(lv == "应" for _, lv in coverage.MGMT_INDICATORS)
+    sections = {c.split()[0] for c, _ in coverage.MGMT_INDICATORS}
+    assert sections == {"8.5", "8.6", "8.7", "8.8"}, sections
+
+
 # ------------------------------------------------------------ 集成层
 def _run(path, *extra):
     return audit.main([path] + list(extra))
@@ -228,6 +260,20 @@ def test_wording_fixture(capsys):
     out = capsys.readouterr().out
     assert code == 1
     assert "越位" in out
+
+
+def test_missing_mgmt_fixture(capsys):
+    code = _run(os.path.join(FIXTURES, "missing-mgmt.docx"), "--fail-on", "critical")
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "管理指标" in out
+
+
+def test_wrong_mgmt_level_fixture(capsys):
+    code = _run(os.path.join(FIXTURES, "wrong-mgmt-level.docx"), "--fail-on", "critical")
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "8.5 d" in out
 
 
 def test_not_a_scheme_fixture(capsys):
