@@ -306,13 +306,122 @@ LEAK_MARKERS = [
 
 @pytest.mark.parametrize("name", ["good.docx", "missing-ch5.docx",
                                   "wrong-level.docx", "wording.docx",
-                                  "not-a-scheme.docx"])
+                                  "not-a-scheme.docx", "vague-na.docx"])
 def test_report_contains_no_source_snippet(name, capsys):
     """验收第 8 条：报告里搜不到 fixture 的原文片段。"""
     _run(os.path.join(FIXTURES, name), "--markdown")
     out = capsys.readouterr().out
     for m in LEAK_MARKERS:
         assert m not in out, "报告里出现了原文：%s" % m
+
+
+# ------------------------------------------------------------- C-07 单元
+def _na_table(conclusions=None, reasons=None, with_reason_col=True):
+    """造一张完整的 41 行对照表。
+
+    conclusions: {条款: 结论}，没写到的默认「设计满足」
+    reasons:     {条款: 说明}
+    """
+    conclusions = conclusions or {}
+    reasons = reasons or {}
+    head = ["条款", "级别", "自评结论"]
+    if with_reason_col:
+        head.append("说明")
+    rows = [head]
+    for clause, level in coverage.TECH_INDICATORS + coverage.MGMT_INDICATORS:
+        num, _, letter = clause.partition(" ")
+        cell = "%s %s)" % (num, letter) if letter else num
+        row = [cell, level, conclusions.get(clause, "设计满足")]
+        if with_reason_col:
+            row.append(reasons.get(clause, ""))
+        rows.append(row)
+    return rows
+
+
+def test_c07_flags_na_without_reason():
+    """表里标了不适用、说明列空着 → 报。"""
+    doc = _doc([], [_na_table({"8.1 a": "不适用", "8.2 d": "不涉及"})])
+    ids = _ids(coverage.run(doc))
+    assert "C-07" in ids
+
+
+def test_c07_quiet_when_reason_given():
+    """写了具体理由 → 不报。"""
+    doc = _doc([], [_na_table(
+        {"8.1 a": "不适用"},
+        {"8.1 a": "该业务不涉及视频监控，现场无采集设备"})])
+    assert "C-07" not in _ids(coverage.run(doc))
+
+
+@pytest.mark.parametrize("reason", ["无", "—", "/", "不适用", "  "])
+def test_c07_trivial_reason_counts_as_empty(reason):
+    """理由只写个「无」「—」，或者跟结论一模一样，等同于没写。"""
+    doc = _doc([], [_na_table({"8.1 a": "不适用"}, {"8.1 a": reason})])
+    assert "C-07" in _ids(coverage.run(doc))
+
+
+def test_c07_no_reason_column_counts_as_missing():
+    """整张表连说明列都没有，就没地方写理由 → 报。"""
+    doc = _doc([], [_na_table({"8.1 a": "不适用"}, with_reason_col=False)])
+    assert "C-07" in _ids(coverage.run(doc))
+
+
+def test_c07_ignores_management_clauses():
+    """管理 19 项全是「应」，标不适用不在 C-07 管，留给以后的 C-08。"""
+    doc = _doc([], [_na_table({"8.5 a": "不适用", "8.8 c": "不涉及"})])
+    assert "C-07" not in _ids(coverage.run(doc))
+
+
+def test_c07_not_reported_without_table():
+    """没有对照表时只有 C-01，不叠一条 C-07。"""
+    doc = _doc(["本项不适用。"], [])
+    ids = _ids(coverage.run(doc))
+    assert "C-01" in ids
+    assert "C-07" not in ids
+
+
+def test_c07_paragraph_without_reason():
+    """正文写「本项不适用」、同段没有理由 → 报。"""
+    doc = _doc(["本项不适用。"], [_na_table()])
+    assert "C-07" in _ids(coverage.run(doc))
+
+
+def test_c07_paragraph_with_reason_ok():
+    """正文写「本项不适用，因为……」→ 不报。"""
+    doc = _doc(["本项不适用，因为该业务不在本系统边界内。"], [_na_table()])
+    assert "C-07" not in _ids(coverage.run(doc))
+
+
+def test_c07_skips_quote_of_standard():
+    """引用标准原文的地方不算自评——报了会让用户觉得这工具没读过标准。"""
+    doc = _doc(["《GB/T 43206-2023》里「本项不适用」指的是什么？"],
+               [_na_table()])
+    assert "C-07" not in _ids(coverage.run(doc))
+
+
+def test_c07_plain_scope_statement_not_flagged():
+    """「本系统不涉及视频监控」是在描述范围，不是自评结论。"""
+    doc = _doc(["本系统不涉及视频监控，因此不含相关采集设备。"], [_na_table()])
+    assert "C-07" not in _ids(coverage.run(doc))
+
+
+def test_c07_vague_na_fixture():
+    """集成：vague-na.docx 里三条「宜」标了不适用且没理由。"""
+    doc = core.SchemeDoc(os.path.join(FIXTURES, "vague-na.docx"))
+    hits = [f for f in coverage.run(doc) if f["id"] == "C-07"]
+    assert len(hits) == 1
+    assert hits[0]["level"] == "critical"
+    for clause in ("8.1 a", "8.1 b", "8.2 d"):
+        assert clause in hits[0]["detail"]
+
+
+@pytest.mark.parametrize("name", ["good.docx", "missing-ch5.docx",
+                                  "wording.docx", "wrong-level.docx",
+                                  "wrong-mgmt-level.docx", "missing-mgmt.docx"])
+def test_c07_does_not_fire_on_existing_fixtures(name):
+    """回归：C-07 不该凭空改变原有 fixture 的判定。"""
+    doc = core.SchemeDoc(os.path.join(FIXTURES, name))
+    assert "C-07" not in _ids(coverage.run(doc))
 
 
 def test_json_output_also_clean(capsys):

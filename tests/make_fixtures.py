@@ -52,7 +52,7 @@ def _p(doc, text):
 
 
 def build(path, drop_ch5=False, wrong_level=False, add_compliant=False,
-          drop_mgmt=False, wrong_mgmt_level=False):
+          drop_mgmt=False, wrong_mgmt_level=False, vague_na=False):
     doc = Document()
 
     # ---- 1 背景 ----
@@ -133,13 +133,17 @@ def build(path, drop_ch5=False, wrong_level=False, add_compliant=False,
     header[0].text = "条款"
     header[1].text = "级别"
     header[2].text = "自评结论"
+    # 三条「宜」直接标不适用、不给理由——模拟「不想写就说一句不涉及」。
+    # 这正是 C-07 存在的理由：不给理由的「不适用」不会让这一条跳过测评，
+    # 反而把它从「可以不测」拉成「必须测」。表里也没有「说明」列可写理由。
+    vague = {"8.1 a", "8.1 b", "8.2 d"} if vague_na else set()
     for i, (clause, level) in enumerate(rows, 1):
         cells = table.rows[i].cells
         # 条款号写成 8.2 b) 形式
         num, _, letter = clause.partition(" ")
         cells[0].text = "%s %s)" % (num, letter) if letter else num
         cells[1].text = level
-        cells[2].text = SELF_ASSESS
+        cells[2].text = "不适用" if clause in vague else SELF_ASSESS
 
     if add_compliant:
         _h(doc, "7.2 自评说明", 2)
@@ -172,6 +176,7 @@ def main():
         ("wording.docx", {"add_compliant": True}),
         ("missing-mgmt.docx", {"drop_mgmt": True}),
         ("wrong-mgmt-level.docx", {"wrong_mgmt_level": True}),
+        ("vague-na.docx", {"vague_na": True}),
     ]
     for name, kw in jobs:
         path = os.path.join(OUT, name)

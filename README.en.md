@@ -70,7 +70,9 @@ For CI, pass `--fail-on critical`.
 
 ### Structure (S-01 – S-06)
 
-The eight chapters required by GB/T 43207-2023 Annex A:
+The eight chapters follow the layout most scheme templates in use share, and
+match the chapter split in GB/T 43207-2023 (design guidelines). Check the
+standard text itself for the authoritative wording:
 
 ```
 1 背景          2 系统概述      3 需求分析      4 目标与原则
@@ -84,7 +86,7 @@ Chapter titles are matched by "chapter number + fixed name", so
 `一、背景`, `1. 项目背景` and `第一章 背景` all work. Body text that merely
 mentions 背景 does not count as a chapter.
 
-### Indicator coverage (C-01 – C-06)
+### Indicator coverage (C-01 – C-07)
 
 Looks for the indicator table (technical 22 rows + management 19 rows = 41 rows)
 and checks:
@@ -94,6 +96,7 @@ and checks:
 - whether each of the 22 technical clauses is present
 - whether each of the 19 management clauses is present
 - whether the level column matches 应 / 宜 / 可 from the standard
+- whether anything marked "not applicable" actually says why (C-07)
 
 The 19 management rows are checked clause-by-clause against **8.5 – 8.8** of
 the third-level requirements, and **all 19 are 应 (mandatory)**. Writing 宜 for
@@ -102,6 +105,32 @@ one of them gets reported.
 > Easy mistake: third-level management requirements are **8.5–8.8**, not
 > 9.1–9.8. Section 9 is the fourth level; a table copied from a level-4
 > template goes wrong starting right there.
+
+**C-07 deserves its own paragraph**, because it is the only check that answers
+"can I just write not applicable and be done with it?"
+
+Of the 22 technical clauses only 7 are 应. The other 15 are 宜 or 可, and the
+cheapest thing to do is mark all 15 "not applicable" and hope nobody asks.
+GB/T 43206-2023 clause 4 b) closes that door:
+
+> Clauses rated 宜 shall be brought back into scope if the scheme, or the
+> assessment opinion on it, does not explicitly explain why they are not
+> applicable.
+
+So leaving out the reason does not exempt the clause — it upgrades it from
+"need not be assessed" to "must be assessed". The author thinks they are
+saving work and is actually creating more.
+
+It fires when the reason column is empty, holds only 无 or —, or just repeats
+the conclusion; and when body text says 本项不适用 with no reason in the same
+paragraph. Scope is limited to **8.1 – 8.4**; the 19 management clauses are
+all 应, so marking one not applicable is a separate problem and is not folded
+in here.
+
+False positives are treated as worse than misses: paragraphs quoting the
+standard are skipped, and plain scope statements like 本系统不涉及视频监控 are
+not treated as self-assessments. Only referential phrasing (本项 / 本条 /
+该指标 不适用) is asked to justify itself.
 
 ### Wording (W-01 – W-02)
 

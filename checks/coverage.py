@@ -240,4 +240,197 @@ def run(doc):
             "不存在「宜」或「可」——把级别改回原文",
         ))
 
+    # ---- C-07：标了「不适用」但没写理由 ----
+    out.extend(_check_na(doc, table, body, clause_col, where))
+
+    return out
+
+
+# ============================================================================
+# C-07：标了「不适用」但没写理由
+#
+# 依据 GB/T 43206-2023 第 4 章 b)：方案评估意见里没对「不适用」作出明确说明的，
+# 「宜」的条款一律纳入测评和结果判定范围。
+#
+# 说人话：写「不涉及」三个字不构成豁免。不给理由，这一条就从「可以不测」
+# 变成「必须测」——作者以为在减负，实际在给自己加活。
+#
+# 只管两处，别的都不管：
+#   1. 指标对照表里结论列标了不适用、说明列却是空的 / 只有一个「无」/ 跟结论一模一样
+#   2. 自评段落里「本项不适用」这类带指代的句式，同一段内找不到理由词
+#
+# 管理 19 项（8.5~8.8）不在这里管：它们全是「应」，标不适用本身就该单独报。
+# 9.x 是第四级的要求，也不管。
+#
+# 误报控制（比漏报重要）：把引用标准原文的那句报出来，用户会觉得这工具没读过标准。
+# ============================================================================
+
+# 结论列里算「声称不适用」的写法
+_NA_VALUE = re.compile(r"^(不适用|不涉及|不采用|N/?A|n/?a|无此场景|无此需求)$")
+
+# 说明列靠表头认
+_REASON_HEAD = ("说明", "理由", "备注", "依据", "原因")
+
+# 理由词：够具体才算数。「无需」「没有必要」不算——那是把结论换个说法。
+_REASON_WORD = re.compile(
+    r"因为|由于|原因|考虑到|鉴于|本系统不含|本系统无|本系统不涉及"
+    r"|由[^，。；、]{2,12}承担|不涉及[^，。；、]{1,12}数据|不承载"
+)
+
+# 只认带指代的自评句。「本系统不涉及视频监控」是在描述范围，
+# 不是在下自评结论，这种报了就是误报。
+_NA_SELF = re.compile(
+    r"(本项|本条|该指标|该项|此项|此条|该条款)\s*[:：]?\s*"
+    r"(不适用|不涉及|无此场景|无此需求)"
+)
+
+# 去掉这些字符就什么都不剩，等于没写
+_TRIVIAL = re.compile(r"^[\s\-—–－/／\\无、，。.；;：:]*$")
+
+_QUOTE_MARK = re.compile(r"[“”\"'「」『』《》]")
+_STD_MENTION = re.compile(r"GB\s*/?\s*T|本标准|本文件|标准原文")
+
+
+def _is_na(cell):
+    return bool((cell or "").strip()) and bool(_NA_VALUE.match((cell or "").strip()))
+
+
+def _substantive(cell):
+    """说明列的格子里填了实质内容。
+
+    表格有自己的「说明」列，填了东西就算说明了，不再追问措辞——
+    硬要求表格里必须出现理由词，会把「该业务不涉及视频监控」这种
+    正常写法冤枉掉。
+    """
+    s = (cell or "").strip()
+    return bool(s) and not _TRIVIAL.match(s)
+
+
+def _has_reason(text):
+    """段落里有没有给出理由。
+
+    段落没有「说明」格，只能靠理由词判断——没有词就等于没说清。
+    空、只有「无」「—」，当然也不算。
+    """
+    s = (text or "").strip()
+    if not s or _TRIVIAL.match(s):
+        return False
+    return bool(_REASON_WORD.search(s))
+
+
+def _na_columns(table):
+    """在对照表里找「结论」列和「说明」列。
+
+    结论列靠内容认（声称不适用的行最多的那列），说明列靠表头认。
+    结论列认不出来，就说明这张表里没人写不适用，C-07 什么都不用做——
+    这也是它不会影响原有 fixture 分数的原因。
+    """
+    if not table:
+        return None, None
+    head = table[0]
+    reason_col = None
+    for ci, h in enumerate(head):
+        if h and any(k in h for k in _REASON_HEAD):
+            reason_col = ci
+            break
+
+    width = max((len(r) for r in table), default=0)
+    concl_col, best = None, 0
+    for ci in range(width):
+        n = sum(1 for r in table[1:]
+                if ci < len(r) and (r[ci] or "").strip() and _is_na(r[ci]))
+        if n > best:
+            concl_col, best = ci, n
+    return (concl_col if best else None), reason_col
+
+
+def _tech_clause(cell):
+    """只认 8.1 ~ 8.4。管理 8.5~8.8 和四级 9.x 都不归 C-07 管。"""
+    c = _parse_clause(cell)
+    if not c:
+        return None
+    major, _, rest = c.partition(".")
+    minor = rest.split(" ")[0]
+    if major != "8" or minor not in ("1", "2", "3", "4"):
+        return None
+    return c
+
+
+def _near_std_quote(paras, i, span=3):
+    """句子附近是不是在引标准原文。
+
+    宁可放过：邻域里同时出现标准名和有引号/书名号，就当引用处理。
+    把引用标准原文的那句报成问题，用户会觉得这工具没读过标准。
+    """
+    lo, hi = max(0, i - span), min(len(paras), i + span + 1)
+    blob = " ".join(paras[j]["text"] for j in range(lo, hi))
+    return bool(_STD_MENTION.search(blob)) and bool(_QUOTE_MARK.search(blob))
+
+
+def _check_na(doc, table, body, clause_col, where):
+    out = []
+
+    # ---- 1. 指标对照表 ----
+    concl_col, reason_col = _na_columns(table)
+    if concl_col is not None and concl_col != clause_col:
+        bad = []
+        for row in body:
+            if concl_col >= len(row) or clause_col >= len(row):
+                continue
+            if not _is_na(row[concl_col]):
+                continue
+            clause = _tech_clause(row[clause_col])
+            if not clause:
+                continue
+            reason = ""
+            if reason_col is not None and reason_col < len(row):
+                reason = (row[reason_col] or "").strip()
+                # 说明列和结论列写成同一句，等于没写
+                if reason and reason == (row[concl_col] or "").strip():
+                    reason = ""
+            if _substantive(reason):
+                continue
+            bad.append(clause)
+
+        if bad:
+            shown = "、".join(bad[:6])
+            more = "（另有 %d 条）" % (len(bad) - 6) if len(bad) > 6 else ""
+            why = ("表里根本没有「说明」列" if reason_col is None
+                   else "「说明」列是空的、只写了「无」，或者跟结论一模一样")
+            out.append(_finding(
+                "C-07", "critical", "标了「不适用」但没写理由",
+                "%s 有 %d 条指标标成不适用，却没给理由：%s%s。%s。"
+                "按 GB/T 43206-2023 第 4 章 b)，没对「不适用」作出明确说明的条款"
+                "一律纳入测评范围——不写理由不是让它跳过，是让它必须被测评"
+                % (where, len(bad), shown, more, why),
+                where,
+                "加一列「不适用理由」，逐条写清为什么不适用，例如「该业务不涉及视频监控，"
+                "现场无采集设备」。只写「不适用」「无」或「—」，跟不写是一个效果",
+            ))
+
+    # ---- 2. 自评段落 ----
+    naive = []
+    paras = doc.paragraphs
+    for i, p in enumerate(paras):
+        t = p["text"]
+        if not _NA_SELF.search(t):
+            continue
+        if _has_reason(t):
+            continue
+        if _near_std_quote(paras, i):
+            continue
+        naive.append(t[:30])
+
+    if naive:
+        shown = "；".join("「%s」" % s for s in naive[:3])
+        more = "（另有 %d 处）" % (len(naive) - 3) if len(naive) > 3 else ""
+        out.append(_finding(
+            "C-07", "critical", "自评写了「不适用」但没写理由",
+            "正文里有 %d 处写了某项不适用、但同一段里没说为什么：%s%s。"
+            "按 GB/T 43206-2023 第 4 章，这类条款照常纳入测评" % (len(naive), shown, more),
+            "正文",
+            "在「不适用」后面补一句具体原因，例如「本项不适用，因为该业务不在本系统范围内」"
+            "或「由云服务商承担，不涉及本地密码运算」",
+        ))
+
     return out
