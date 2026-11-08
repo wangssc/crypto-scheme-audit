@@ -61,8 +61,17 @@ python audit.py 方案.docx --fail-on critical # CI 用：有 critical 就返回
 
 ## 不想开命令行：双击版
 
-Windows 上可以直接用 `密码应用方案自检.exe`：**双击 → 选 .docx → 浏览器自动打开报告**。
+Windows 上可以把本项目打成双击版：**双击 → 选 .docx → 浏览器自动打开报告**。
 不用装 Python，不用开命令行。
+
+**这个 16 MB 的二进制不放在仓库里**（不该往 git 里塞可执行文件）。自己打一份，一条命令：
+
+```bash
+pip install pyinstaller python-docx
+pyinstaller CryptoSchemeAudit.spec --noconfirm
+```
+
+产物在 `dist\密码应用方案自检.exe`。
 
 报告写在 exe 旁边的 `自检报告\` 目录；那个位置不可写（比如放在 `Program Files`）时，
 自动退到 `%LOCALAPPDATA%\CryptoSchemeAudit\报告`。
@@ -77,7 +86,7 @@ Windows 上可以直接用 `密码应用方案自检.exe`：**双击 → 选 .do
 密码应用方案自检.exe 方案.docx --no-open    # 只出报告，不开浏览器、不弹窗
 ```
 
-### 下载后怎么确认没被改过
+### 拿到 exe 后怎么确认没被改过
 
 | 项 | 值 |
 |---|---|
@@ -93,14 +102,13 @@ certutil -hashfile "密码应用方案自检.exe" SHA256
 
 对上那串 64 位十六进制即可。
 
-**为什么杀毒软件可能报毒**：exe 由 PyInstaller 打包，没有代码签名证书。
-PyInstaller 的自解压启动方式和某些恶意打包器特征相似，误报很常见。
-不想信这个二进制的话，代码全在本仓库里，用 `Python 3.12` 自己打一份对哈希：
+**自己打出来对不上是正常的**：PyInstaller 打出的二进制跟**版本、Python 小版本、
+路径**都有关，换台机器就不可能一样。上面这组数字的生成条件：
+Python 3.12 + PyInstaller 6.22.3 + 仓库根目录打包。要对上就照这个来。
 
-```bash
-pip install pyinstaller python-docx
-pyinstaller CryptoSchemeAudit.spec --noconfirm
-```
+**为什么杀毒软件可能报毒**：exe 由 PyInstaller 打包，没有代码签名证书。
+它的自解压启动方式和某些恶意打包器特征相似，误报很常见。
+不信这个二进制就自己打 —— 源码全在仓库里。
 
 ## 检查项
 
