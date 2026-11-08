@@ -9,17 +9,29 @@
 2. console=False：双击运行时不能弹黑框。
 3. onefile：用户只需要一个 exe，不用管 _internal 目录往哪放。
 4. excludes 里排掉的是体积大头，本项目一个都用不到（docx 只依赖 lxml）。
+5. ui/index.html 必须打进去：server.py 靠 sys._MEIPASS/ui/index.html 找界面，
+   漏了它 exe 起来是个「界面文件缺失」的 500 白页。所以这里缺文件直接抛错，
+   不静默跳过——打包当场失败，比发出去被人发现好。
 """
+
+import os
 
 from PyInstaller.utils.hooks import collect_submodules
 
 hiddenimports = collect_submodules("checks")
+# app.py 里 `import server` 写在函数内部，静态分析可能漏，显式列上。
+hiddenimports += ["server"]
+
+_UI = os.path.join(SPECPATH, "ui", "index.html")
+if not os.path.isfile(_UI):
+    raise SystemExit("打包中止：找不到 %s" % _UI)
+datas = [(_UI, "ui")]
 
 a = Analysis(
     ["app.py"],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

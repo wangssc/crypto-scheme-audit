@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>密码应用方案自检</title>
+<style>
+:root{
+  --bg:#f5f6f7; --card:#fff; --line:#e5e7eb; --ink:#1f2328;
+  --ink2:#4b5563; --ink3:#6b7280; --ink4:#9ca3af;
+  --c:#b91c1c; --cbg:#fef2f2; --cline:#fecaca;
+  --w:#c2410c; --wbg:#fff7ed; --wline:#fed7aa;
+  --h:#6b7280; --hbg:#f3f4f6; --hline:#e5e7eb;
+  --ok:#15803d; --accent:#2563eb;
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+/* 不要给 body 设 height:100%：内容比视口长时，盒子高度锁死在视口高，
+   底部 padding 就不参与渲染，最后一个按钮会被顶到页面最边上贴死。 */
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",
+    "PingFang SC","Hiragino Sans GB","Source Han Sans SC",sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  padding:40px 16px 72px;
+}
+.app{max-width:860px;margin:0 auto}
+
+/* ---------- 头部 ---------- */
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
+.hd h1{font-size:23px;font-weight:600;letter-spacing:.4px}
+.hd .sub{font-size:13px;color:var(--ink3);margin-top:6px}
+.ver{font-size:12px;color:var(--ink4);font-family:Consolas,monospace;
+  padding-top:4px;white-space:nowrap}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:24px;margin-bottom:18px}
+
+/* ---------- 拖拽区 ---------- */
+.drop{
+  border:2px dashed #d5dae0;border-radius:10px;background:#fbfcfd;
+  padding:44px 20px;text-align:center;cursor:pointer;
+  transition:border-color .16s,background .16s,transform .16s;
+  outline:none;
+}
+.drop:hover,.drop:focus-visible{border-color:#a9bde0;background:#f7faff}
+.drop.over{border-color:var(--accent);background:#eff5ff;transform:scale(1.006)}
+.drop svg{width:46px;height:46px;stroke:#b6bec8;fill:none;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round;transition:stroke .16s;margin-bottom:14px}
+.drop:hover svg,.drop.over svg{stroke:#7f9dd0}
+.drop .dt{font-size:16px;font-weight:600;color:#374151}
+.drop .ds{font-size:13px;color:var(--ink4);margin-top:8px}
+.drop .ds u{text-decoration:none;color:var(--accent);border-bottom:1px solid #c3d4f5}
+/* 结果出来之后拖拽区收成一条，把屏幕让给分数。
+   不收的话用户每次都要往下滚才能看到结论。 */
+.drop.compact{display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px 18px;border-style:dashed}
+.drop.compact svg{width:17px;height:17px;margin:0;flex-shrink:0}
+.drop.compact .dt{font-size:13px;font-weight:400;color:var(--ink3)}
+.drop.compact .ds{display:none}
+.drop.compact .dt::after{content:"，也可以换一份";color:var(--ink4)}
+
+/* ---------- 文件行 ---------- */
+.filerow{display:flex;align-items:center;gap:12px;margin-top:16px;
+  padding:12px 14px;background:#f8fafb;border:1px solid var(--line);border-radius:9px}
+.filerow[hidden]{display:none}
+.filerow .fname{font-size:14px;font-weight:600;color:#374151;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.filerow .fsize{font-size:12px;color:var(--ink4);font-family:Consolas,monospace;
+  white-space:nowrap}
+.spin{width:16px;height:16px;border:2px solid #dbe3ec;border-top-color:var(--accent);
+  border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.okdot{color:var(--ok);font-size:16px;line-height:1;flex-shrink:0}
+
+/* ---------- 结果：结论 ---------- */
+.verdict{display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+.num{font-size:58px;font-weight:700;line-height:1;letter-spacing:-2.5px}
+.num small{font-size:18px;font-weight:400;color:var(--ink4);margin-left:3px;letter-spacing:0}
+.gA{color:#15803d}.gB{color:#4d7c0f}.gC{color:#b45309}
+.gD{color:#c2410c}.gQ{color:var(--ink3)}
+.vtext{flex:1;min-width:230px}
+.vtext strong{display:block;font-size:16px;margin-bottom:5px}
+.vtext span{color:var(--ink3);font-size:13px}
+.vfile{font-size:12px;color:var(--ink4);margin-top:16px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- 结果：三个计数 ---------- */
+.pills{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}
+.pill{flex:1;min-width:126px;border-radius:11px;padding:14px 16px;
+  border:1px solid var(--line);background:#fafafa}
+.pill b{display:block;font-size:26px;font-weight:700;line-height:1.2}
+.pill span{font-size:12.5px;color:var(--ink3)}
+.pill.c{border-color:var(--cline);background:var(--cbg)}
+.pill.c b{color:var(--c)}
+.pill.w{border-color:var(--wline);background:var(--wbg)}
+.pill.w b{color:var(--w)}
+.pill.h b{color:var(--h)}
+/* 0 项还标红标橙会让人以为有问题，0 就该是灰的 */
+.pill.zero{border-color:var(--line);background:#fafafa}
+.pill.zero b{color:var(--ink4)}
+
+/* ---------- 结果：未评估 ---------- */
+.na{border-color:#fde68a;background:#fffbeb}
+.na .nt{font-size:26px;font-weight:700;color:#92400e;letter-spacing:1px}
+.na p{font-size:14px;color:#78350f;margin-top:10px}
+.na .emph{font-weight:600;color:#92400e}
+
+/* ---------- 结果：分级列表 ---------- */
+/* 某一档 0 项时别占一整张卡片：满分文档三档全空，会白掉大半屏。 */
+.card.tight{padding:14px 24px}
+.card.tight .sec h2{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.sec h2{font-size:14.5px;font-weight:600;color:#374151;
+  padding-bottom:9px;border-bottom:1px solid #eceff1;margin-bottom:16px}
+.sec h2 em{font-style:normal;color:var(--ink4);font-weight:400;font-size:13px}
+.item{border-left:3px solid var(--line);padding:11px 0 11px 15px;margin-bottom:15px}
+.item:last-child{margin-bottom:0}
+.item.c{border-color:#ef4444}
+.item.w{border-color:#f59e0b}
+.item.h{border-color:#d1d5db}
+.ihd{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;
+  letter-spacing:.4px;flex-shrink:0}
+.tag.c{background:#fee2e2;color:#991b1b}
+.tag.w{background:#ffedd5;color:#9a3412}
+.tag.h{background:#f3f4f6;color:#4b5563}
+.ihd .ttl{font-size:14.5px;font-weight:600;color:#252b33}
+.ihd .loc{font-size:11.5px;color:var(--ink4);font-family:Consolas,monospace}
+.item p{font-size:13.5px;color:var(--ink2);margin-top:6px}
+.item .fix{font-size:13px;color:#15803d;margin-top:8px;padding-left:17px;position:relative}
+.item .fix::before{content:"→";position:absolute;left:0;color:#22c55e;font-weight:700}
+.empty{font-size:13.5px;color:var(--ink3);padding:6px 0}
+
+/* ---------- 局限说明 ---------- */
+.limits li{font-size:13px;color:var(--ink3);margin:5px 0 5px 17px}
+
+/* ---------- 动作条 ---------- */
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.actions[hidden]{display:none}
+button{
+  font:inherit;font-size:13.5px;padding:9px 16px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:#fff;color:#374151;
+  transition:background .14s,border-color .14s,color .14s;
+}
+button:hover{background:#f3f6f9;border-color:#d1d8e0}
+button:active{transform:translateY(.5px)}
+button.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+button.primary:hover{background:#33393f;border-color:#33393f}
+button.ghost{color:var(--ink3)}
+button.ghost:hover{color:#b91c1c;border-color:#fecaca;background:#fef2f2}
+button:disabled{opacity:.5;cursor:default;transform:none}
+.spacer{flex:1}
+
+/* ---------- 错误 ---------- */
+.err{border-color:#fecaca;background:#fef2f2}
+.err .et{font-size:15px;font-weight:600;color:#991b1b}
+.err p{font-size:13.5px;color:#7f1d1d;margin-top:8px;white-space:pre-wrap}
+
+/* ---------- 遮罩 ---------- */
+.overlay{position:fixed;inset:0;background:rgba(245,246,247,.94);
+  display:flex;align-items:center;justify-content:center;padding:24px;z-index:99}
+.overlay[hidden]{display:none}
+.overlay .box{background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:32px 36px;max-width:400px;text-align:center}
+.overlay .box strong{display:block;font-size:17px;margin-bottom:10px}
+.overlay .box p{font-size:13.5px;color:var(--ink3)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hd">
+    <div>
+      <h1>密码应用方案自检</h1>
+      <p class="sub">GB/T 39786-2021 第三级 · 只做结构与覆盖检查，不替代人工评审</p>
+    </div>
+    <div class="ver" id="ver"></div>
+  </header>
+
+  <section class="card" id="dropCard">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="选择或拖入方案文件">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M13 6h15l9 9v27a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+        <path d="M28 6v9h9"/>
+        <path d="M17 26h14M17 32h14M17 20h6"/>
+      </svg>
+      <div class="dt">把方案 .docx 拖到这里</div>
+      <div class="ds">或者<u>点这里选</u></div>
+    </div>
+    <div class="filerow" id="filerow" hidden>
+      <span class="spin" id="spin"></span>
+      <span class="fname" id="fname"></span>
+      <span class="fsize" id="fsize"></span>
+    </div>
+    <input type="file" id="file" accept=".docx" hidden>
+  </section>
+
+  <div id="result"></div>
+
+  <div class="actions" id="actions" hidden>
+    <button class="primary" id="btnNew">换一份</button>
+    <span class="spacer"></span>
+    <button id="btnDir">打开报告文件夹</button>
+    <button id="btnSave">另存为 HTML</button>
+    <button class="ghost" id="btnQuit">退出工具</button>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="box">
+    <strong>服务已停止</strong>
+    <p>后台进程不在了，这个页面不会再有响应。<br>
+       关掉这个标签页，重新双击程序即可。</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var $ = function(id){ return document.getElementById(id); };
+  var drop = $("drop"), fileInput = $("file"), dropCard = $("dropCard");
+  var filerow = $("filerow"), fname = $("fname"), fsize = $("fsize"), spin = $("spin");
+  var resultBox = $("result"), actions = $("actions");
+  var state = { busy:false, reportHtml:"", reportFile:"", dir:"" };
+
+  var MAX_MB = 60;
+  var LIMITS = [
+    "不判断技术方案是否可行、密码产品选型是否合理",
+    "不验证方案里提到的密码产品是否真实存在、是否有资质",
+    "不读图片内容（图片里可能藏着表格和漏洞，工具看不见）",
+    "扫描件 PDF 不支持，只支持 .docx",
+    "跨章一致性只做提示，不做判定——那需要理解语义，容易误报"
+  ];
+  var LEVELS = [
+    { key:"critical", cls:"c", name:"必须修" },
+    { key:"warn",     cls:"w", name:"建议改" },
+    { key:"hint",     cls:"h", name:"提示（不参与评分）" }
+  ];
+
+  // ---------- 小工具 ----------
+  function esc(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  function mb(n){
+    if (n < 1024) return n + " B";
+    if (n < 1024*1024) return (n/1024).toFixed(1) + " KB";
+    return (n/1024/1024).toFixed(2) + " MB";
+  }
+  function gradeCls(g){
+    return ({A:"gA", B:"gB", C:"gC", D:"gD"})[g] || "gQ";
+  }
+  function el(tag, cls, txt){
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt != null) n.textContent = txt;
+    return n;
+  }
+
+  // ---------- 状态切换 ----------
+  function toIdle(){
+    state.busy = false;
+    filerow.hidden = true;
+    drop.classList.remove("compact");
+    resultBox.innerHTML = "";
+    actions.hidden = true;
+    fileInput.value = "";
+  }
+  function toBusy(file){
+    state.busy = true;
+    drop.classList.add("compact");
+    filerow.hidden = false;
+    spin.hidden = false;
+    fname.textContent = file.name;
+    fsize.textContent = mb(file.size);
+    resultBox.innerHTML = "";
+    actions.hidden = true;
+  }
+  function toError(msg){
+    state.busy = false;
+    drop.classList.remove("compact");
+    spin.hidden = true;
+    var c = el("section", "card err");
+    c.appendChild(el("div", "et", "没跑成"));
+    c.appendChild(el("p", null, msg));
+    resultBox.innerHTML = "";
+    resultBox.appendChild(c);
+    actions.hidden = false;
+  }
+
+  // ---------- 渲染 ----------
+  function renderScore(d){
+    resultBox.innerHTML = "";
+    var card = el("section", "card");
+
+    var v = el("div", "verdict");
+    var num = el("div", "num " + gradeCls(d.grade));
+    num.innerHTML = esc(d.score) + "<small>/100</small>";
+    v.appendChild(num);
+
+    var txt = el("div", "vtext");
+    txt.appendChild(el("strong", null, "等级 " + d.grade + "　" + (d.label || "")));
+    var hint = d.capped_by_critical
+      ? "存在「必须修」项，总分已封顶 65——先修完再算分。"
+      : "扣分合计 " + d.penalty + (d.counts.hint ? "（提示项不计分）" : "");
+    txt.appendChild(el("span", null, hint));
+    v.appendChild(txt);
+    card.appendChild(v);
+
+    var pills = el("div", "pills");
+    [["c","critical","必须修"], ["w","warn","建议改"], ["h","hint","提示"]]
+      .forEach(function(t){
+        var n = d.counts[t[1]] || 0;
+        var p = el("div", "pill " + t[0] + (n ? "" : " zero"));
+        p.appendChild(el("b", null, n));
+        p.appendChild(el("span", null, t[2]));
+        pills.appendChild(p);
+      });
+    card.appendChild(pills);
+
+    var f = el("div", "vfile");
+    f.textContent = d.file + "　·　" + d.stats.paragraphs + " 段落 / "
+      + d.stats.tables + " 表格 / " + d.stats.headings + " 标题";
+    card.appendChild(f);
+    resultBox.appendChild(card);
+
+    LEVELS.forEach(function(lv){
+      var rows = (d.findings || []).filter(function(x){ return x.level === lv.key; });
+      var has = rows.length > 0;
+      var sec = el("section", "card" + (has ? "" : " tight"));
+      var box = el("div", "sec");
+      var h2 = el("h2", null, lv.name + "　");
+      h2.appendChild(el("em", null, rows.length + " 项"
+        + (has ? "" : "　这一档没有发现问题")));
+      box.appendChild(h2);
+
+      if (has){
+        rows.forEach(function(x){
+          var it = el("div", "item " + lv.cls);
+          var hd = el("div", "ihd");
+          hd.appendChild(el("span", "tag " + lv.cls, x.id || ""));
+          hd.appendChild(el("span", "ttl", x.title || ""));
+          if (x.location) hd.appendChild(el("span", "loc", x.location));
+          it.appendChild(hd);
+          if (x.detail) it.appendChild(el("p", null, x.detail));
+          if (x.fix){
+            var fx = el("div", "fix");
+            fx.textContent = x.fix;
+            it.appendChild(fx);
+          }
+          box.appendChild(it);
+        });
+      }
+      sec.appendChild(box);
+      resultBox.appendChild(sec);
+    });
+
+    // 局限说明
+    var lim = el("section", "card");
+    var lb = el("div", "sec");
+    lb.appendChild(el("h2", null, "工具没检查什么"));
+    var ul = el("ul", "limits");
+    LIMITS.forEach(function(t){ ul.appendChild(el("li", null, t)); });
+    lb.appendChild(ul);
+    lim.appendChild(lb);
+    resultBox.appendChild(lim);
+  }
+
+  function renderNotAssessed(d){
+    resultBox.innerHTML = "";
+    var card = el("section", "card na");
+    card.appendChild(el("div", "nt", "未评估"));
+    card.appendChild(el("p", null, d.reason || "这份文档里找不到方案的八章结构。"));
+    card.appendChild(el("p", null,
+      "可能是：不是方案文件、是扫描件 PDF、或者章节标题没用 Word 的「标题 1」样式。"));
+    card.appendChild(el("p", "emph", "这不是「通过」，也不代表 0 分。"));
+
+    var f = el("div", "vfile");
+    f.textContent = d.file + "　·　" + d.stats.paragraphs + " 段落 / "
+      + d.stats.tables + " 表格 / " + d.stats.headings + " 标题";
+    card.appendChild(f);
+    resultBox.appendChild(card);
+
+    var lim = el("section", "card");
+    var lb = el("div", "sec");
+    lb.appendChild(el("h2", null, "工具没检查什么"));
+    var ul = el("ul", "limits");
+    LIMITS.forEach(function(t){ ul.appendChild(el("li", null, t)); });
+    lb.appendChild(ul);
+    lim.appendChild(lb);
+    resultBox.appendChild(lim);
+  }
+
+  // ---------- 上传与检查 ----------
+  function handleFile(file){
+    if (!file || state.busy) return;
+    if (!/\.docx$/i.test(file.name)){
+      toError("只支持 .docx。\nWord 97-2003 的 .doc 和扫描件 PDF 请先另存为 .docx。");
+      return;
+    }
+    if (file.size > MAX_MB * 1024 * 1024){
+      toError("文件 " + mb(file.size) + "，超过 " + MAX_MB + "MB。\n"
+        + "请确认选的是方案文档，不是别的压缩包。");
+      return;
+    }
+    toBusy(file);
+
+    var reader = new FileReader();
+    reader.onerror = function(){ toError("读不了这个文件，可能没有读取权限。"); };
+    reader.onload = function(){
+      var s = String(reader.result || "");
+      var comma = s.indexOf(",");
+      var b64 = comma >= 0 ? s.slice(comma + 1) : s;
+      fetch("api/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, data: b64 })
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if (!d || !d.ok){
+          toError((d && d.error) || "服务返回了看不懂的东西。");
+          return;
+        }
+        state.busy = false;
+        state.reportHtml = d.report_html || "";
+        state.reportFile = d.report_file || "自检报告.html";
+        state.dir = d.dir || "";
+        spin.hidden = true;
+        fsize.textContent = mb(file.size) + "　已检查";
+        if (d.assessed) renderScore(d); else renderNotAssessed(d);
+        actions.hidden = false;
+        $("btnSave").disabled = !state.reportHtml;
+        $("btnDir").disabled = !state.dir;
+      }).catch(function(){
+        toError("连不上后台服务。\n可能这个进程已经退出了，重新双击程序试试。");
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ---------- 事件 ----------
+  drop.addEventListener("click", function(){ if (!state.busy) fileInput.click(); });
+  drop.addEventListener("keydown", function(e){
+    if (e.key === "Enter" || e.key === " "){ e.preventDefault(); drop.click(); }
+  });
+  fileInput.addEventListener("change", function(){
+    if (fileInput.files && fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  ["dragenter","dragover"].forEach(function(t){
+    drop.addEventListener(t, function(e){
+      e.preventDefault(); e.stopPropagation();
+      drop.classList.add("over");
+    });
+  });
+  ["dragleave","dragend"].forEach(function(t){
+    drop.addEventListener(t, function(e){
+      e.preventDefault(); e.stopPropagation();
+      drop.classList.remove("over");
+    });
+  });
+  drop.addEventListener("drop", function(e){
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.remove("over");
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  // 拖到页面空白处别让浏览器直接打开文件（那会把界面顶掉）
+  ["dragover","drop"].forEach(function(t){
+    window.addEventListener(t, function(e){
+      if (!drop.contains(e.target)) e.preventDefault();
+    });
+  });
+
+  $("btnNew").addEventListener("click", toIdle);
+
+  $("btnDir").addEventListener("click", function(){
+    fetch("api/opendir", { method:"POST", headers:{"Content-Type":"application/json"},
+      body:"{}" }).then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) toError(d.error || "打不开文件夹。");
+    }).catch(function(){});
+  });
+
+  $("btnSave").addEventListener("click", function(){
+    if (!state.reportHtml) return;
+    var blob = new Blob([state.reportHtml], { type:"text/html;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = state.reportFile;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  });
+
+  $("btnQuit").addEventListener("click", function(){
+    if (!window.confirm("退出后这个页面就不能用了，确定退出？")) return;
+    fetch("api/quit", { method:"POST", headers:{"Content-Type":"application/json"},
+      body:"{}" }).then(function(){ $("overlay").hidden = false; }).catch(function(){
+      $("overlay").hidden = false;
+    });
+  });
+
+  // ---------- 存活探针 ----------
+  // 每 3 秒 ping 一次，连续 2 次不通就盖遮罩。不这么做的话，
+  // 用户关掉了控制台窗口，页面还停在那儿，点什么都只是转圈。
+  (function watch(){
+    var fails = 0;
+    setInterval(function(){
+      fetch("api/ping", { cache:"no-store" }).then(function(r){
+        if (!r.ok) throw new Error("bad");
+        fails = 0;
+      }).catch(function(){
+        fails += 1;
+        if (fails >= 2) $("overlay").hidden = false;
+      });
+    }, 3000);
+  })();
+
+  // 版本号（拿不到就不显示，不弹错）
+  fetch("api/ping", { cache:"no-store" }).then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.version) $("ver").textContent = "v" + d.version + " · 本机运行";
+    }).catch(function(){});
+})();
+</script>
+</body>
+</html>

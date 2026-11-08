@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""双击入口：选一个方案 .docx，出一份 HTML 报告，用浏览器打开。
+"""双击入口：起一个本地界面服务，浏览器里拖方案文件看结果。
 
-命令行也能用：
+不带参数 —— 起服务 + 自动开浏览器，停在拖拽界面（main 的默认路径）。
+带参数   —— 一次性模式，不启服务，跑完就退，给脚本和自动化用：
     python app.py <方案.docx>
     python app.py <方案.docx> --no-open
 
-为什么不用纯 CLI：双击 exe 时没有终端，报错一闪而过。
-这里所有失败都弹窗，不会静默退出。
+为什么不再弹系统选文件框：用户反馈「没有图形化交互式界面，用着不方便」。
+窗口化程序没有终端，一次性模式的失败仍然弹窗，不会静默退出。
 """
 
 import os
@@ -16,6 +17,25 @@ import traceback
 import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def _fix_streams():
+    """windowed exe（console=False）里 sys.stdout / sys.stderr 是 None。
+
+    双击时没有控制台，PyInstaller 就不给这两个流，之后任何一句 print 都会抛
+    AttributeError: 'NoneType' object has no attribute 'write'——而窗口化程序
+    连报错都看不见，表现为「双击没反应」。
+    从 Git Bash 或 cmd 启动时有管道，反而不会暴露，所以这个问题只在真实双击时出现。
+    """
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            try:
+                setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+            except Exception:
+                pass
+
+
+_fix_streams()
 
 import core        # noqa: E402
 import audit       # noqa: E402
@@ -81,20 +101,6 @@ def check_file(path):
     return html, out, msg
 
 
-def _pick():
-    import tkinter as tk
-    from tkinter import filedialog, messagebox
-    root = tk.Tk()
-    root.withdraw()
-    path = filedialog.askopenfilename(
-        title="选一个密码应用方案（Word 文档）",
-        filetypes=[("Word 文档", "*.docx"), ("所有文件", "*.*")])
-    if not path:
-        root.destroy()
-        return None, root
-    return path, root
-
-
 def _fail(msg, root=None):
     try:
         from tkinter import messagebox
@@ -108,43 +114,31 @@ def _fail(msg, root=None):
             pass
 
 
-def main(argv=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
-    no_open = "--no-open" in argv
-    argv = [a for a in argv if a != "--no-open"]
-
-    root = None
-    if argv:
-        path = argv[0]
-    else:
-        path, root = _pick()
-        if not path:
-            return 0
-
+def run_once(path, no_open=False):
+    """命令行一次性模式：检查一个文件，出一份 HTML，不启服务。"""
     if not os.path.exists(path):
-        _fail("找不到这个文件：\n%s" % path, root)
+        _fail("找不到这个文件：\n%s" % path)
         return 2
     if not path.lower().endswith(".docx"):
-        _fail("只支持 .docx。\nWord 97-2003 的 .doc 和扫描件 PDF 请先另存为 .docx。", root)
+        _fail("只支持 .docx。\nWord 97-2003 的 .doc 和扫描件 PDF 请先另存为 .docx。")
         return 2
 
     try:
         _, out, msg = check_file(path)
     except Exception:
-        _fail("检查过程中出错了。\n\n%s" % traceback.format_exc()[-1200:], root)
+        _fail("检查过程中出错了。\n\n%s" % traceback.format_exc()[-1200:])
         return 3
-
-    if not no_open:
-        try:
-            webbrowser.open("file:///" + out.replace("\\", "/"))
-        except Exception:
-            pass
 
     if no_open:
         # --no-open 是给脚本用的：不弹窗、只打印，否则自动化测试会被 showinfo 卡住等点击。
         print(msg + "\n" + out)
     else:
         try:
+            webbrowser.open("file:///" + out.replace("\\", "/"))
+        except Exception:
+            pass
+        try:
+            import tkinter as tk
             from tkinter import messagebox
             r = tk.Tk()
             r.withdraw()
@@ -153,13 +147,21 @@ def main(argv=None):
             r.destroy()
         except Exception:
             print(msg + "\n" + out)
-
-    if root is not None:
-        try:
-            root.destroy()
-        except Exception:
-            pass
     return 0
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    no_open = "--no-open" in argv
+    argv = [a for a in argv if a != "--no-open"]
+
+    # 给了文件路径就是一次性模式，不给就起界面服务。
+    # 服务模式不开线程池之外的任何东西，也不写日志文件。
+    if argv:
+        return run_once(argv[0], no_open)
+
+    import server
+    return server.main(no_open=no_open)
 
 
 if __name__ == "__main__":
