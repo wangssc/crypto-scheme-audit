@@ -59,6 +59,49 @@ python audit.py 方案.docx --fail-on critical # CI 用：有 critical 就返回
 注意：`--fail-on` 默认是 `none`，所以直接跑总是返回 0。CI 里要显式写
 `--fail-on critical`。
 
+## 不想开命令行：双击版
+
+Windows 上可以直接用 `密码应用方案自检.exe`：**双击 → 选 .docx → 浏览器自动打开报告**。
+不用装 Python，不用开命令行。
+
+报告写在 exe 旁边的 `自检报告\` 目录；那个位置不可写（比如放在 `Program Files`）时，
+自动退到 `%LOCALAPPDATA%\CryptoSchemeAudit\报告`。
+
+取消选文件会直接退出，不留后台进程。检查过程中的任何失败都会弹窗说明，
+不会一闪而过。
+
+双击版也认命令行参数，方便批处理和 CI：
+
+```bash
+密码应用方案自检.exe 方案.docx              # 出报告并打开浏览器
+密码应用方案自检.exe 方案.docx --no-open    # 只出报告，不开浏览器、不弹窗
+```
+
+### 下载后怎么确认没被改过
+
+| 项 | 值 |
+|---|---|
+| 文件名 | `密码应用方案自检.exe` |
+| 大小 | 17,157,829 字节（16.36 MB） |
+| SHA256 | `7c02271f4d0c2875e99a3207d3bdaa4908981e9f35c6a094a2767f6aa309c1f6` |
+
+在 exe 所在目录开 cmd 或 PowerShell，跑：
+
+```
+certutil -hashfile "密码应用方案自检.exe" SHA256
+```
+
+对上那串 64 位十六进制即可。
+
+**为什么杀毒软件可能报毒**：exe 由 PyInstaller 打包，没有代码签名证书。
+PyInstaller 的自解压启动方式和某些恶意打包器特征相似，误报很常见。
+不想信这个二进制的话，代码全在本仓库里，用 `Python 3.12` 自己打一份对哈希：
+
+```bash
+pip install pyinstaller python-docx
+pyinstaller CryptoSchemeAudit.spec --noconfirm
+```
+
 ## 检查项
 
 ### 结构 S-01 – S-06

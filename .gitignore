@@ -9,3 +9,9 @@ dist/
 out/
 # 探针与临时输出
 _probe/
+# 双击版运行后生成的报告目录（在 exe 旁边）
+自检报告/
+# PyInstaller 随手生成的 spec 不入库；
+# 手写的那份打包配置要留，不然别人复现不出同一个 exe，也就没法对哈希
+*.spec
+!CryptoSchemeAudit.spec
